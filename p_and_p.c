@@ -6,7 +6,11 @@
 #include <string.h>
 #include <unistd.h>
 
-typedef ssize_t (*ioFuncPtr)(int, void *, size_t);
+typedef ssize_t (*ioFuncPtr)(
+    int,
+    void *,
+    size_t
+); // can only be read(2) or write(2)
 typedef struct ItemDetails ItemDetails;
 typedef struct Character Character;
 typedef struct ItemCarried ItemCarried;
@@ -49,16 +53,21 @@ int loadItemDetails(ItemDetails **ptr, size_t *numEls, int fd) {
 	}
 	const size_t size = sizeof(ItemDetails) * *numEls;
 	*ptr = malloc(size);
-	if (processField(fd, *ptr, size, read) == EXIT_FAILURE) {
-		free(*ptr);
+	if (ptr == NULL) {
 		return EXIT_FAILURE;
 	}
+	if (processField(fd, *ptr, size, read) == EXIT_FAILURE) {
+		goto err;
+	}
 	if (isValidItemDetailsAll(*ptr, *numEls) == EXIT_FAILURE) {
-		free(*ptr);
-		return EXIT_FAILURE;
+		goto err;
 	}
 	sanitiseItemDetails(*ptr, *numEls);
 	return EXIT_SUCCESS;
+
+err: // make sure to free the allocated memory if any error occurs
+	free(*ptr);
+	return EXIT_FAILURE;
 }
 
 int isValidName(const char *str) {
@@ -142,18 +151,23 @@ int loadCharacters(Character **ptr, size_t *numEls, int fd) {
 	}
 	const size_t size = sizeof(Character) * *numEls;
 	*ptr = malloc(size);
+	if (ptr == NULL) {
+		return EXIT_FAILURE;
+	}
 	for (size_t i = 0; i < *numEls; ++i) {
 		if (processCharacter(&(*ptr)[i], fd, read) == EXIT_FAILURE) {
-			free(*ptr);
-			return EXIT_FAILURE;
+			goto err;
 		}
 	}
 	if (isValidCharacters(*ptr, *numEls) == EXIT_FAILURE) {
-		free(*ptr);
-		return EXIT_FAILURE;
+		goto err;
 	}
 	sanitiseCharacters(*ptr, *numEls);
 	return EXIT_SUCCESS;
+
+err: // make sure to free the allocated memory if any error occurs
+	free(*ptr);
+	return EXIT_FAILURE;
 }
 
 int secureLoad(const char *filepath) {
