@@ -12,21 +12,14 @@ typedef struct Character Character;
 typedef struct ItemCarried ItemCarried;
 static_assert(sizeof(size_t) == sizeof(uint64_t), "Assume size_t is 64 bits");
 
+static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc);
+static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc);
 static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls);
 static int isValidCharacters(const Character *arr, size_t numEls);
 static void sanitiseItemDetails(ItemDetails *arr, size_t numEls);
+static void sanitiseCharacters(Character *arr, size_t numEls);
 static void sanitiseString(char *buffer);
 static void sanitiseBuffer(char *buffer, size_t valid_length, size_t max_size);
-static void sanitiseCharacters(Character *arr, size_t numEls);
-static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc);
-
-static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc) {
-	ssize_t res;
-	if ((res = ioFunc(fd, buf, size)) == -1 || (size_t)res != size) {
-		return EXIT_FAILURE;
-	}
-	return EXIT_SUCCESS;
-}
 
 int saveItemDetails(ItemDetails *arr, size_t numEls, int fd) {
 	if (processField(fd, &numEls, sizeof(numEls), (ioFuncPtr)write) ==
@@ -48,32 +41,6 @@ int saveItemDetails(ItemDetails *arr, size_t numEls, int fd) {
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
-}
-
-static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
-		if (isValidItemDetails(&arr[i]) == EXIT_FAILURE) {
-			return EXIT_FAILURE;
-		}
-	}
-	return EXIT_SUCCESS;
-}
-
-static void sanitiseItemDetails(ItemDetails *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
-		sanitiseString(arr[i].name);
-		sanitiseString(arr[i].desc);
-	}
-}
-
-static void sanitiseString(char *buffer) {
-	size_t length = strlen(buffer);
-	sanitiseBuffer(buffer, length, DEFAULT_BUFFER_SIZE);
-}
-
-static void
-sanitiseBuffer(char *buffer, size_t valid_length, size_t max_size) {
-	memset(buffer + valid_length, '\0', max_size - valid_length);
 }
 
 int loadItemDetails(ItemDetails **ptr, size_t *numEls, int fd) {
@@ -169,25 +136,38 @@ int saveCharacters(Character *arr, size_t numEls, int fd) {
 	return EXIT_SUCCESS;
 }
 
-static int isValidCharacters(const Character *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
-		if (isValidCharacter(&arr[i]) == EXIT_FAILURE) {
+int loadCharacters(Character **ptr, size_t *numEls, int fd) {
+	if (processField(fd, numEls, sizeof(*numEls), read) == EXIT_FAILURE) {
+		return EXIT_FAILURE;
+	}
+	const size_t size = sizeof(Character) * *numEls;
+	*ptr = malloc(size);
+	for (size_t i = 0; i < *numEls; ++i) {
+		if (processCharacter(&(*ptr)[i], fd, read) == EXIT_FAILURE) {
+			free(*ptr);
 			return EXIT_FAILURE;
 		}
 	}
+	if (isValidCharacters(*ptr, *numEls) == EXIT_FAILURE) {
+		free(*ptr);
+		return EXIT_FAILURE;
+	}
+	sanitiseCharacters(*ptr, *numEls);
 	return EXIT_SUCCESS;
 }
 
-static void sanitiseCharacters(Character *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
-		sanitiseString(arr[i].name);
-		sanitiseString(arr[i].profession);
-		sanitiseBuffer(
-		    arr[i].profession,
-		    sizeof(ItemCarried) * arr[i].inventorySize,
-		    sizeof(ItemCarried) * MAX_ITEMS
-		);
+int secureLoad(const char *filepath) {
+	return 0;
+}
+
+void playGame(ItemDetails *ptr, size_t numEls);
+
+static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc) {
+	ssize_t res;
+	if ((res = ioFunc(fd, buf, size)) == -1 || (size_t)res != size) {
+		return EXIT_FAILURE;
 	}
+	return EXIT_SUCCESS;
 }
 
 static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc) {
@@ -244,28 +224,47 @@ static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc) {
 	return EXIT_SUCCESS;
 }
 
-int loadCharacters(Character **ptr, size_t *numEls, int fd) {
-	if (processField(fd, numEls, sizeof(*numEls), read) == EXIT_FAILURE) {
-		return EXIT_FAILURE;
-	}
-	const size_t size = sizeof(Character) * *numEls;
-	*ptr = malloc(size);
-	for (size_t i = 0; i < *numEls; ++i) {
-		if (processCharacter(&(*ptr)[i], fd, read) == EXIT_FAILURE) {
-			free(*ptr);
+static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls) {
+	for (size_t i = 0; i < numEls; i++) {
+		if (isValidItemDetails(&arr[i]) == EXIT_FAILURE) {
 			return EXIT_FAILURE;
 		}
 	}
-	if (isValidCharacters(*ptr, *numEls) == EXIT_FAILURE) {
-		free(*ptr);
-		return EXIT_FAILURE;
-	}
-	sanitiseCharacters(*ptr, *numEls);
 	return EXIT_SUCCESS;
 }
 
-int secureLoad(const char *filepath) {
-	return 0;
+static int isValidCharacters(const Character *arr, size_t numEls) {
+	for (size_t i = 0; i < numEls; i++) {
+		if (isValidCharacter(&arr[i]) == EXIT_FAILURE) {
+			return EXIT_FAILURE;
+		}
+	}
+	return EXIT_SUCCESS;
 }
 
-void playGame(ItemDetails *ptr, size_t numEls);
+static void sanitiseItemDetails(ItemDetails *arr, size_t numEls) {
+	for (size_t i = 0; i < numEls; i++) {
+		sanitiseString(arr[i].name);
+		sanitiseString(arr[i].desc);
+	}
+}
+
+static void sanitiseCharacters(Character *arr, size_t numEls) {
+	for (size_t i = 0; i < numEls; i++) {
+		sanitiseString(arr[i].name);
+		sanitiseString(arr[i].profession);
+		sanitiseBuffer(
+		    arr[i].profession,
+		    sizeof(ItemCarried) * arr[i].inventorySize,
+		    sizeof(ItemCarried) * MAX_ITEMS
+		);
+	}
+}
+static void sanitiseString(char *buffer) {
+	size_t length = strlen(buffer);
+	sanitiseBuffer(buffer, length, DEFAULT_BUFFER_SIZE);
+}
+
+static void sanitiseBuffer(char *buffer, size_t valid_length, size_t max_size) {
+	memset(buffer + valid_length, '\0', max_size - valid_length);
+}
