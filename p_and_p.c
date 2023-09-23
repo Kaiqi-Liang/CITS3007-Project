@@ -13,13 +13,11 @@ int saveItemDetails(const ItemDetails *arr, size_t numEls, int fd) {
 	if ((res = write(fd, &numEls, sizeof(size_t)) == -1) ||
 	    (size_t)res != sizeof(size_t))
 	{
-		perror("Failed to write number");
 		return EXIT_FAILURE;
 	}
 	if ((res = write(fd, arr, sizeof(ItemDetails) * numEls) == -1) ||
 	    (size_t)res != sizeof(ItemDetails) * numEls)
 	{
-		perror("Failed to write structs");
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
@@ -38,12 +36,12 @@ int loadItemDetails(ItemDetails **ptr, size_t *numEls, int fd) {
 	if ((res = read(fd, numEls, sizeof(size_t)) == -1) ||
 	    (size_t)res != sizeof(size_t))
 	{
-		perror("Failed to read number");
 		return EXIT_FAILURE;
 	}
 	const size_t size = sizeof(ItemDetails) * *numEls;
 	*ptr = malloc(size);
 	if ((res = read(fd, *ptr, size) == -1) || (size_t)res != size) {
+		free(ptr);
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
