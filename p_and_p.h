@@ -73,7 +73,7 @@ struct Character {
 	struct ItemCarried inventory[MAX_ITEMS];
 };
 
-int saveItemDetails(const struct ItemDetails *arr, size_t numEls, int fd);
+int saveItemDetails(struct ItemDetails *arr, size_t numEls, int fd);
 
 int saveItemDetailsToPath(
     const struct ItemDetails *arr,

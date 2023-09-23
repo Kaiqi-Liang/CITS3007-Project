@@ -6,6 +6,7 @@
 #include <string.h>
 #include <unistd.h>
 
+typedef ssize_t (*ioFuncPtr)(int, void *, size_t);
 typedef struct ItemDetails ItemDetails;
 typedef struct Character Character;
 typedef struct ItemCarried ItemCarried;
@@ -13,18 +14,23 @@ static_assert(sizeof(size_t) == sizeof(uint64_t), "Assume size_t is 64 bits");
 
 static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls);
 static int isValidCharacters(const Character *arr, size_t numEls);
-static void sanitiseItemDetails(const ItemDetails *arr, size_t numEls);
-static void sanitise_string(const char *buffer);
-static void
-sanitise_buffer(const char *buffer, size_t valid_length, size_t max_size);
-static void sanitiseCharacters(const Character *arr, size_t numEls);
-static int loadCharacter(Character *character, int fd);
-static int saveCharacter(Character character, int fd);
+static void sanitiseItemDetails(ItemDetails *arr, size_t numEls);
+static void sanitiseString(char *buffer);
+static void sanitiseBuffer(char *buffer, size_t valid_length, size_t max_size);
+static void sanitiseCharacters(Character *arr, size_t numEls);
+static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc);
 
-int saveItemDetails(const ItemDetails *arr, size_t numEls, int fd) {
+static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc) {
 	ssize_t res;
-	if ((res = write(fd, &numEls, sizeof(numEls))) == -1 ||
-	    (size_t)res != sizeof(numEls))
+	if ((res = ioFunc(fd, buf, size)) == -1 || (size_t)res != size) {
+		return EXIT_FAILURE;
+	}
+	return EXIT_SUCCESS;
+}
+
+int saveItemDetails(ItemDetails *arr, size_t numEls, int fd) {
+	if (processField(fd, &numEls, sizeof(numEls), (ioFuncPtr)write) ==
+	    EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
@@ -32,8 +38,13 @@ int saveItemDetails(const ItemDetails *arr, size_t numEls, int fd) {
 		return EXIT_FAILURE;
 	}
 	sanitiseItemDetails(arr, numEls);
-	const size_t size = sizeof(ItemDetails) * numEls;
-	if ((res = write(fd, arr, size)) == -1 || (size_t)res != size) {
+	if (processField(
+	        fd,
+	        (void *)arr,
+	        sizeof(*arr) * numEls,
+	        (ioFuncPtr)write
+	    ) == EXIT_FAILURE)
+	{
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
@@ -48,42 +59,31 @@ static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls) {
 	return EXIT_SUCCESS;
 }
 
-static void sanitiseItemDetails(const ItemDetails *arr, size_t numEls) {
+static void sanitiseItemDetails(ItemDetails *arr, size_t numEls) {
 	for (size_t i = 0; i < numEls; i++) {
-		sanitise_string(arr[i].name);
-		sanitise_string(arr[i].desc);
+		sanitiseString(arr[i].name);
+		sanitiseString(arr[i].desc);
 	}
 }
 
-static void sanitise_string(const char *buffer) {
+static void sanitiseString(char *buffer) {
 	size_t length = strlen(buffer);
-	sanitise_buffer(buffer, length, DEFAULT_BUFFER_SIZE);
+	sanitiseBuffer(buffer, length, DEFAULT_BUFFER_SIZE);
 }
 
 static void
-sanitise_buffer(const char *buffer, size_t valid_length, size_t max_size) {
+sanitiseBuffer(char *buffer, size_t valid_length, size_t max_size) {
 	memset(buffer + valid_length, '\0', max_size - valid_length);
 }
 
-int saveItemDetailsToPath(
-    const ItemDetails *arr,
-    size_t numEls,
-    const char *filename
-) {
-	return 0;
-}
-
 int loadItemDetails(ItemDetails **ptr, size_t *numEls, int fd) {
-	ssize_t res;
-	if ((res = read(fd, numEls, sizeof(numEls))) == -1 ||
-	    (size_t)res != sizeof(numEls))
-	{
+	if (processField(fd, numEls, sizeof(*numEls), read) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 	const size_t size = sizeof(ItemDetails) * *numEls;
 	*ptr = malloc(size);
-	if ((res = read(fd, *ptr, size)) == -1 || (size_t)res != size) {
-		free(ptr);
+	if (processField(fd, *ptr, size, read) == EXIT_FAILURE) {
+		free(*ptr);
 		return EXIT_FAILURE;
 	}
 	if (isValidItemDetailsAll(*ptr, *numEls) == EXIT_FAILURE) {
@@ -154,9 +154,8 @@ int isValidCharacter(const Character *c) {
 }
 
 int saveCharacters(Character *arr, size_t numEls, int fd) {
-	ssize_t res;
-	if ((res = write(fd, &numEls, sizeof(numEls))) == -1 ||
-	    (size_t)res != sizeof(numEls))
+	if (processField(fd, &numEls, sizeof(numEls), (ioFuncPtr)write) ==
+	    EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
@@ -165,7 +164,7 @@ int saveCharacters(Character *arr, size_t numEls, int fd) {
 	}
 	sanitiseCharacters(arr, numEls);
 	for (size_t i = 0; i < numEls; ++i) {
-		saveCharacter(arr[i], fd);
+		processCharacter(&arr[i], fd, (ioFuncPtr)write);
 	}
 	return EXIT_SUCCESS;
 }
@@ -179,11 +178,11 @@ static int isValidCharacters(const Character *arr, size_t numEls) {
 	return EXIT_SUCCESS;
 }
 
-static void sanitiseCharacters(const Character *arr, size_t numEls) {
+static void sanitiseCharacters(Character *arr, size_t numEls) {
 	for (size_t i = 0; i < numEls; i++) {
-		sanitise_string(arr[i].name);
-		sanitise_string(arr[i].profession);
-		sanitise_buffer(
+		sanitiseString(arr[i].name);
+		sanitiseString(arr[i].profession);
+		sanitiseBuffer(
 		    arr[i].profession,
 		    sizeof(ItemCarried) * arr[i].inventorySize,
 		    sizeof(ItemCarried) * MAX_ITEMS
@@ -191,43 +190,54 @@ static void sanitiseCharacters(const Character *arr, size_t numEls) {
 	}
 }
 
-static int saveCharacter(Character character, int fd) {
-	ssize_t res;
-	if ((res = write(fd, &character.characterID, sizeof(character.characterID))
-	    ) == -1 ||
-	    (size_t)res != sizeof(character.characterID))
+static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc) {
+	if (processField(
+	        fd,
+	        &character->characterID,
+	        sizeof(character->characterID),
+	        ioFunc
+	    ) == EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
-	if ((res = write(fd, &character.socialClass, sizeof(character.socialClass))
-	    ) == -1 ||
-	    (size_t)res != sizeof(character.socialClass))
+	if (processField(
+	        fd,
+	        &character->socialClass,
+	        sizeof(character->socialClass),
+	        ioFunc
+	    ) == EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
-	if ((res = write(fd, character.profession, sizeof(character.profession))) ==
-	        -1 ||
-	    (size_t)res != sizeof(character.profession))
+	if (processField(
+	        fd,
+	        character->profession,
+	        sizeof(character->profession),
+	        ioFunc
+	    ) == EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
-	if ((res = write(fd, character.name, sizeof(character.name))) == -1 ||
-	    (size_t)res != sizeof(character.name))
+	if (processField(fd, character->name, sizeof(character->name), ioFunc) ==
+	    EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
-	if ((res = write(
-	         fd,
-	         &character.inventorySize,
-	         sizeof(character.inventorySize)
-	     )) == -1 ||
-	    (size_t)res != sizeof(character.inventorySize))
+	if (processField(
+	        fd,
+	        &character->inventorySize,
+	        sizeof(character->inventorySize),
+	        ioFunc
+	    ) == EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
-	const size_t size = sizeof(ItemCarried) * character.inventorySize;
-	if ((res = write(fd, character.inventory, size)) == -1 ||
-	    (size_t)res != size)
+	if (processField(
+	        fd,
+	        character->inventory,
+	        sizeof(ItemCarried) * character->inventorySize,
+	        ioFunc
+	    ) == EXIT_FAILURE)
 	{
 		return EXIT_FAILURE;
 	}
@@ -235,16 +245,13 @@ static int saveCharacter(Character character, int fd) {
 }
 
 int loadCharacters(Character **ptr, size_t *numEls, int fd) {
-	ssize_t res;
-	if ((res = read(fd, numEls, sizeof(numEls))) == -1 ||
-	    (size_t)res != sizeof(numEls))
-	{
+	if (processField(fd, numEls, sizeof(*numEls), read) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 	const size_t size = sizeof(Character) * *numEls;
 	*ptr = malloc(size);
 	for (size_t i = 0; i < *numEls; ++i) {
-		if (loadCharacter(&(*ptr)[i], fd) == EXIT_FAILURE) {
+		if (processCharacter(&(*ptr)[i], fd, read) == EXIT_FAILURE) {
 			free(*ptr);
 			return EXIT_FAILURE;
 		}
@@ -254,49 +261,6 @@ int loadCharacters(Character **ptr, size_t *numEls, int fd) {
 		return EXIT_FAILURE;
 	}
 	sanitiseCharacters(*ptr, *numEls);
-	return EXIT_SUCCESS;
-}
-
-static int loadCharacter(Character *character, int fd) {
-	ssize_t res;
-	if ((res = read(fd, &character->characterID, sizeof(character->characterID))
-	    ) == -1 ||
-	    (size_t)res != sizeof(character->characterID))
-	{
-		return EXIT_FAILURE;
-	}
-	if ((res = read(fd, &character->socialClass, sizeof(character->socialClass))
-	    ) == -1 ||
-	    (size_t)res != sizeof(character->socialClass))
-	{
-		return EXIT_FAILURE;
-	}
-	if ((res = read(fd, character->profession, sizeof(character->profession))
-	    ) == -1 ||
-	    (size_t)res != sizeof(character->profession))
-	{
-		return EXIT_FAILURE;
-	}
-	if ((res = read(fd, character->name, sizeof(character->name))) == -1 ||
-	    (size_t)res != sizeof(character->name))
-	{
-		return EXIT_FAILURE;
-	}
-	if ((res = read(
-	         fd,
-	         &character->inventorySize,
-	         sizeof(character->inventorySize)
-	     )) == -1 ||
-	    (size_t)res != sizeof(character->inventorySize))
-	{
-		return EXIT_FAILURE;
-	}
-	const size_t size = sizeof(ItemCarried) * character->inventorySize;
-	if ((res = read(fd, character->inventory, size)) == -1 ||
-	    (size_t)res != size)
-	{
-		return EXIT_FAILURE;
-	}
 	return EXIT_SUCCESS;
 }
 
