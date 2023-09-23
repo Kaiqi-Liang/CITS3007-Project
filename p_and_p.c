@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <ctype.h>
 #include <p_and_p.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,12 +11,12 @@ static_assert(sizeof(size_t) == sizeof(uint64_t), "Assume size_t is 64 bits");
 
 int saveItemDetails(const ItemDetails *arr, size_t numEls, int fd) {
 	ssize_t res;
-	if ((res = write(fd, &numEls, sizeof(size_t)) == -1) ||
+	if ((res = write(fd, &numEls, sizeof(size_t))) == -1 ||
 	    (size_t)res != sizeof(size_t))
 	{
 		return EXIT_FAILURE;
 	}
-	if ((res = write(fd, arr, sizeof(ItemDetails) * numEls) == -1) ||
+	if ((res = write(fd, arr, sizeof(ItemDetails) * numEls)) == -1 ||
 	    (size_t)res != sizeof(ItemDetails) * numEls)
 	{
 		return EXIT_FAILURE;
@@ -33,14 +34,14 @@ int saveItemDetailsToPath(
 
 int loadItemDetails(ItemDetails **ptr, size_t *numEls, int fd) {
 	ssize_t res;
-	if ((res = read(fd, numEls, sizeof(size_t)) == -1) ||
+	if ((res = read(fd, numEls, sizeof(size_t))) == -1 ||
 	    (size_t)res != sizeof(size_t))
 	{
 		return EXIT_FAILURE;
 	}
 	const size_t size = sizeof(ItemDetails) * *numEls;
 	*ptr = malloc(size);
-	if ((res = read(fd, *ptr, size) == -1) || (size_t)res != size) {
+	if ((res = read(fd, *ptr, size)) == -1 || (size_t)res != size) {
 		free(ptr);
 		return EXIT_FAILURE;
 	}
