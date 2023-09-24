@@ -1,9 +1,11 @@
 #include <assert.h>
 #include <ctype.h>
+#include <fcntl.h>
 #include <p_and_p.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 typedef ssize_t (*ioFuncPtr)(int, void *, size_t); // can only be read(2) or write(2)
@@ -32,7 +34,7 @@ int saveItemDetails(ItemDetails *arr, size_t numEls, int fd) {
 
 	sanitiseItemDetails(arr, numEls);
 
-	if (processField(fd, (void *)arr, sizeof(*arr) * numEls, (ioFuncPtr)write) == EXIT_FAILURE) {
+	if (processField(fd, arr, sizeof(*arr) * numEls, (ioFuncPtr)write) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
@@ -170,14 +172,24 @@ err: // make sure to free the allocated memory if any error occurs
 }
 
 int secureLoad(const char *filepath) {
+	const int fd = open(filepath, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+	size_t numEls;
+	ItemDetails *item_details;
+	if (loadItemDetails(&item_details, &numEls, fd) == EXIT_FAILURE) {
+		return 1;
+	}
+	if (setuid(getuid()) == -1) {
+		return 2;
+	}
+	playGame(item_details, numEls);
 	return 0;
 }
 
-void playGame(ItemDetails *ptr, size_t numEls);
+void playGame(struct ItemDetails *ptr, size_t numEls) {}
 
 static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc) {
-	ssize_t res;
-	if ((res = ioFunc(fd, buf, size)) == -1 || (size_t)res != size) {
+	const ssize_t res = ioFunc(fd, buf, size);
+	if (res == -1 || (size_t)res != size) {
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
