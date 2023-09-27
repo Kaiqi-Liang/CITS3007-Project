@@ -79,16 +79,20 @@ err: // make sure to free the allocated memory if any error occurs
  * @brief Check whether a string constitutes a valid `name` field
  */
 int isValidName(const char *str) {
-	for (size_t i = 0; i < DEFAULT_BUFFER_SIZE; i++) {
+	size_t i = 0;
+	for (; i < DEFAULT_BUFFER_SIZE; ++i) {
 		if (i < DEFAULT_BUFFER_SIZE - 1) {
 			if (str[i] == '\0') {
-				return EXIT_SUCCESS;
+				break;
 			} else if (!isgraph(str[i])) {
 				return EXIT_FAILURE;
 			}
 		} else if (str[i] != '\0') {
 			return EXIT_FAILURE;
 		}
+	}
+	if (i == 0) {
+		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
 }
@@ -98,7 +102,7 @@ int isValidName(const char *str) {
  */
 int isValidMultiword(const char *str) {
 	size_t i = 0;
-	for (; i < DEFAULT_BUFFER_SIZE; i++) {
+	for (; i < DEFAULT_BUFFER_SIZE; ++i) {
 		if (i < DEFAULT_BUFFER_SIZE - 1) {
 			if (str[i] == '\0') {
 				break;
@@ -115,7 +119,7 @@ int isValidMultiword(const char *str) {
 			break;
 		}
 	}
-	if (i > 0 && str[i - 1] == ' ') {
+	if (i == 0 || str[i - 1] == ' ') {
 		return EXIT_FAILURE;
 	}
 	return EXIT_SUCCESS;
@@ -135,12 +139,19 @@ int isValidItemDetails(const ItemDetails *id) {
  * @brief Check whether a `Character` struct is valid
  */
 int isValidCharacter(const Character *c) {
-	if (isValidName(c->profession) == EXIT_SUCCESS && isValidMultiword(c->name) == EXIT_SUCCESS &&
-	    c->inventorySize <= MAX_ITEMS)
+	if (isValidName(c->profession) == EXIT_FAILURE || isValidMultiword(c->name) == EXIT_FAILURE ||
+	    c->inventorySize > MAX_ITEMS)
 	{
-		return EXIT_SUCCESS;
+		return EXIT_FAILURE;
 	}
-	return EXIT_FAILURE;
+	size_t total_number_of_items = 0;
+	for (size_t i = 0; i < c->inventorySize; ++i) {
+		total_number_of_items += c->inventory[i].quantity;
+	}
+	if (total_number_of_items > MAX_ITEMS) {
+		return EXIT_FAILURE;
+	}
+	return EXIT_SUCCESS;
 }
 
 /**
@@ -216,11 +227,6 @@ int secureLoad(const char *filepath) {
 }
 
 /**
- * @brief Start playing the game
- */
-void playGame(struct ItemDetails *ptr, size_t numEls) {}
-
-/**
  * @brief Read/write from/to a file to/from a buffer of a given size
  */
 static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc) {
@@ -280,7 +286,7 @@ static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc) {
  * @brief Check whether an array of `ItemDetails` structs are valid
  */
 static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
+	for (size_t i = 0; i < numEls; ++i) {
 		if (isValidItemDetails(&arr[i]) == EXIT_FAILURE) {
 			return EXIT_FAILURE;
 		}
@@ -292,7 +298,7 @@ static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls) {
  * @brief Check whether an array of `Character` structs are valid
  */
 static int isValidCharacters(const Character *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
+	for (size_t i = 0; i < numEls; ++i) {
 		if (isValidCharacter(&arr[i]) == EXIT_FAILURE) {
 			return EXIT_FAILURE;
 		}
@@ -304,7 +310,7 @@ static int isValidCharacters(const Character *arr, size_t numEls) {
  * @brief Sanitise all the string fields in a `ItemDetails` struct
  */
 static void sanitiseItemDetails(ItemDetails *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
+	for (size_t i = 0; i < numEls; ++i) {
 		sanitiseString(arr[i].name);
 		sanitiseString(arr[i].desc);
 	}
@@ -315,7 +321,7 @@ static void sanitiseItemDetails(ItemDetails *arr, size_t numEls) {
  * `inventory` field
  */
 static void sanitiseCharacters(Character *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; i++) {
+	for (size_t i = 0; i < numEls; ++i) {
 		sanitiseString(arr[i].name);
 		sanitiseString(arr[i].profession);
 		sanitiseBuffer(
