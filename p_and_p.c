@@ -16,29 +16,34 @@ static_assert(sizeof(size_t) == sizeof(uint64_t), "Assume size_t is 64 bit unsig
 
 static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc);
 static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc);
-static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls);
-static int isValidCharacters(const Character *arr, size_t numEls);
-static void sanitiseItemDetails(ItemDetails *arr, size_t numEls);
-static void sanitiseCharacters(Character *arr, size_t numEls);
+static int isValidItemDetailsAll(const ItemDetails *arr, size_t nmemb);
+static int isValidCharacters(const Character *arr, size_t nmemb);
+static void sanitiseItemDetails(ItemDetails *arr, size_t nmemb);
+static void sanitiseCharacters(Character *arr, size_t nmemb);
 static void sanitiseString(char *buffer);
-static void sanitiseBuffer(void *buffer, size_t valid_length, size_t max_size);
 
 /**
  * @brief Serialise an array of `ItemDetails` structs and store the array using
  * the `ItemDetails` file format
  */
-int saveItemDetails(ItemDetails *arr, size_t numEls, int fd) {
-	if (processField(fd, &numEls, sizeof(numEls), (ioFuncPtr)write) == EXIT_FAILURE) {
+int saveItemDetails(const ItemDetails *arr, size_t nmemb, int fd) {
+	if (processField(fd, &nmemb, sizeof(nmemb), (ioFuncPtr)write) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
-	if (isValidItemDetailsAll(arr, numEls) == EXIT_FAILURE) {
+	if (isValidItemDetailsAll(arr, nmemb) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
-	sanitiseItemDetails(arr, numEls);
+	size_t size = sizeof(*arr) * nmemb;
+	ItemDetails *copy = malloc(size);
+	if (copy == NULL) {
+		return EXIT_FAILURE;
+	}
+	memcpy(copy, arr, size);
+	sanitiseItemDetails(copy, nmemb);
 
-	if (processField(fd, arr, sizeof(*arr) * numEls, (ioFuncPtr)write) == EXIT_FAILURE) {
+	if (processField(fd, copy, size, (ioFuncPtr)write) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
@@ -48,12 +53,12 @@ int saveItemDetails(ItemDetails *arr, size_t numEls, int fd) {
 /**
  * @brief Deseriaslise an array of `ItemDetails` structs from a file descriptor
  */
-int loadItemDetails(ItemDetails **ptr, size_t *numEls, int fd) {
-	if (processField(fd, numEls, sizeof(*numEls), read) == EXIT_FAILURE) {
+int loadItemDetails(ItemDetails **ptr, size_t *nmemb, int fd) {
+	if (processField(fd, nmemb, sizeof(*nmemb), read) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
-	const size_t size = sizeof(ItemDetails) * *numEls;
+	const size_t size = sizeof(ItemDetails) * *nmemb;
 	*ptr = malloc(size);
 	if (ptr == NULL) {
 		return EXIT_FAILURE;
@@ -63,11 +68,11 @@ int loadItemDetails(ItemDetails **ptr, size_t *numEls, int fd) {
 		goto err;
 	}
 
-	if (isValidItemDetailsAll(*ptr, *numEls) == EXIT_FAILURE) {
+	if (isValidItemDetailsAll(*ptr, *nmemb) == EXIT_FAILURE) {
 		goto err;
 	}
 
-	sanitiseItemDetails(*ptr, *numEls);
+	sanitiseItemDetails(*ptr, *nmemb);
 	return EXIT_SUCCESS;
 
 err: // make sure to free the allocated memory if any error occurs
@@ -158,18 +163,18 @@ int isValidCharacter(const Character *c) {
  * @brief Serialise an array of `Character` structs and store the array using
  * the `Character` file format
  */
-int saveCharacters(Character *arr, size_t numEls, int fd) {
-	if (processField(fd, &numEls, sizeof(numEls), (ioFuncPtr)write) == EXIT_FAILURE) {
+int saveCharacters(Character *arr, size_t nmemb, int fd) {
+	if (processField(fd, &nmemb, sizeof(nmemb), (ioFuncPtr)write) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
-	if (isValidCharacters(arr, numEls) == EXIT_FAILURE) {
+	if (isValidCharacters(arr, nmemb) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
-	sanitiseCharacters(arr, numEls);
+	sanitiseCharacters(arr, nmemb);
 
-	for (size_t i = 0; i < numEls; ++i) {
+	for (size_t i = 0; i < nmemb; ++i) {
 		processCharacter(&arr[i], fd, (ioFuncPtr)write);
 	}
 
@@ -179,28 +184,28 @@ int saveCharacters(Character *arr, size_t numEls, int fd) {
 /**
  * @brief Deseriaslise an array of `Character` structs from a file descriptor
  */
-int loadCharacters(Character **ptr, size_t *numEls, int fd) {
-	if (processField(fd, numEls, sizeof(*numEls), read) == EXIT_FAILURE) {
+int loadCharacters(Character **ptr, size_t *nmemb, int fd) {
+	if (processField(fd, nmemb, sizeof(*nmemb), read) == EXIT_FAILURE) {
 		return EXIT_FAILURE;
 	}
 
-	const size_t size = sizeof(Character) * *numEls;
+	const size_t size = sizeof(Character) * *nmemb;
 	*ptr = malloc(size);
 	if (ptr == NULL) {
 		return EXIT_FAILURE;
 	}
 
-	for (size_t i = 0; i < *numEls; ++i) {
+	for (size_t i = 0; i < *nmemb; ++i) {
 		if (processCharacter(&(*ptr)[i], fd, read) == EXIT_FAILURE) {
 			goto err;
 		}
 	}
 
-	if (isValidCharacters(*ptr, *numEls) == EXIT_FAILURE) {
+	if (isValidCharacters(*ptr, *nmemb) == EXIT_FAILURE) {
 		goto err;
 	}
 
-	sanitiseCharacters(*ptr, *numEls);
+	sanitiseCharacters(*ptr, *nmemb);
 	return EXIT_SUCCESS;
 
 err: // make sure to free the allocated memory if any error occurs
@@ -214,15 +219,15 @@ err: // make sure to free the allocated memory if any error occurs
  */
 int secureLoad(const char *filepath) {
 	const int fd = open(filepath, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
-	size_t numEls;
+	size_t nmemb;
 	ItemDetails *item_details;
-	if (loadItemDetails(&item_details, &numEls, fd) == EXIT_FAILURE) {
+	if (loadItemDetails(&item_details, &nmemb, fd) == EXIT_FAILURE) {
 		return 1;
 	}
 	if (setuid(getuid()) == -1) {
 		return 2;
 	}
-	playGame(item_details, numEls);
+	playGame(item_details, nmemb);
 	return 0;
 }
 
@@ -285,8 +290,8 @@ static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc) {
 /**
  * @brief Check whether an array of `ItemDetails` structs are valid
  */
-static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; ++i) {
+static int isValidItemDetailsAll(const ItemDetails *arr, size_t nmemb) {
+	for (size_t i = 0; i < nmemb; ++i) {
 		if (isValidItemDetails(&arr[i]) == EXIT_FAILURE) {
 			return EXIT_FAILURE;
 		}
@@ -297,8 +302,8 @@ static int isValidItemDetailsAll(const ItemDetails *arr, size_t numEls) {
 /**
  * @brief Check whether an array of `Character` structs are valid
  */
-static int isValidCharacters(const Character *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; ++i) {
+static int isValidCharacters(const Character *arr, size_t nmemb) {
+	for (size_t i = 0; i < nmemb; ++i) {
 		if (isValidCharacter(&arr[i]) == EXIT_FAILURE) {
 			return EXIT_FAILURE;
 		}
@@ -309,8 +314,8 @@ static int isValidCharacters(const Character *arr, size_t numEls) {
 /**
  * @brief Sanitise all the string fields in a `ItemDetails` struct
  */
-static void sanitiseItemDetails(ItemDetails *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; ++i) {
+static void sanitiseItemDetails(ItemDetails *arr, size_t nmemb) {
+	for (size_t i = 0; i < nmemb; ++i) {
 		sanitiseString(arr[i].name);
 		sanitiseString(arr[i].desc);
 	}
@@ -320,15 +325,10 @@ static void sanitiseItemDetails(ItemDetails *arr, size_t numEls) {
  * @brief Sanitise all the string fields in a `ItemDetails` struct and the
  * `inventory` field
  */
-static void sanitiseCharacters(Character *arr, size_t numEls) {
-	for (size_t i = 0; i < numEls; ++i) {
+static void sanitiseCharacters(Character *arr, size_t nmemb) {
+	for (size_t i = 0; i < nmemb; ++i) {
 		sanitiseString(arr[i].name);
 		sanitiseString(arr[i].profession);
-		sanitiseBuffer(
-		    arr[i].inventory,
-		    sizeof(ItemCarried) * arr[i].inventorySize,
-		    sizeof(ItemCarried) * MAX_ITEMS
-		);
 	}
 }
 
@@ -337,12 +337,5 @@ static void sanitiseCharacters(Character *arr, size_t numEls) {
  */
 static void sanitiseString(char *buffer) {
 	size_t length = strlen(buffer);
-	sanitiseBuffer(buffer, length, DEFAULT_BUFFER_SIZE);
-}
-
-/**
- * @brief Fill the buffer from after the valid point to the end with `0`s
- */
-static void sanitiseBuffer(void *buffer, size_t valid_length, size_t max_size) {
-	memset(buffer + valid_length, 0, max_size - valid_length);
+	memset(buffer + length, 0, DEFAULT_BUFFER_SIZE - length);
 }
