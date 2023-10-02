@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <p_and_p.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,9 +45,11 @@ int saveItemDetails(const ItemDetails *arr, size_t nmemb, int fd) {
 	sanitiseItemDetails(copy, nmemb);
 
 	if (processField(fd, copy, size, (ioFuncPtr)write) == EXIT_FAILURE) {
+		free(copy);
 		return EXIT_FAILURE;
 	}
 
+	free(copy);
 	return EXIT_SUCCESS;
 }
 
@@ -90,16 +93,16 @@ int isValidName(const char *str) {
 			if (str[i] == '\0') {
 				break;
 			} else if (!isgraph(str[i])) {
-				return EXIT_FAILURE;
+				return false;
 			}
 		} else if (str[i] != '\0') {
-			return EXIT_FAILURE;
+			return false;
 		}
 	}
 	if (i == 0) {
-		return EXIT_FAILURE;
+		return false;
 	}
-	return EXIT_SUCCESS;
+	return true;
 }
 
 /**
@@ -113,50 +116,42 @@ int isValidMultiword(const char *str) {
 				break;
 			} else if (str[i] == ' ') {
 				if (i == 0) {
-					return EXIT_FAILURE;
+					return false;
 				}
 			} else if (!isgraph(str[i])) {
-				return EXIT_FAILURE;
+				return false;
 			}
 		} else if (str[i] != '\0') {
-			return EXIT_FAILURE;
+			return false;
 		} else {
 			break;
 		}
 	}
 	if (i == 0 || str[i - 1] == ' ') {
-		return EXIT_FAILURE;
+		return false;
 	}
-	return EXIT_SUCCESS;
+	return true;
 }
 
 /**
  * @brief Check whether an `ItemDetails` struct is valid
  */
 int isValidItemDetails(const ItemDetails *id) {
-	if (isValidName(id->name) == EXIT_SUCCESS && isValidMultiword(id->desc) == EXIT_SUCCESS) {
-		return EXIT_SUCCESS;
-	}
-	return EXIT_FAILURE;
+	return isValidName(id->name) && isValidMultiword(id->desc);
 }
 
 /**
  * @brief Check whether a `Character` struct is valid
  */
 int isValidCharacter(const Character *c) {
-	if (isValidName(c->profession) == EXIT_FAILURE || isValidMultiword(c->name) == EXIT_FAILURE ||
-	    c->inventorySize > MAX_ITEMS)
-	{
-		return EXIT_FAILURE;
+	if (!isValidName(c->profession) || !isValidMultiword(c->name) || c->inventorySize > MAX_ITEMS) {
+		return false;
 	}
 	size_t total_number_of_items = 0;
 	for (size_t i = 0; i < c->inventorySize; ++i) {
 		total_number_of_items += c->inventory[i].quantity;
 	}
-	if (total_number_of_items > MAX_ITEMS) {
-		return EXIT_FAILURE;
-	}
-	return EXIT_SUCCESS;
+	return total_number_of_items <= MAX_ITEMS;
 }
 
 /**
@@ -292,7 +287,7 @@ static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc) {
  */
 static int isValidItemDetailsAll(const ItemDetails *arr, size_t nmemb) {
 	for (size_t i = 0; i < nmemb; ++i) {
-		if (isValidItemDetails(&arr[i]) == EXIT_FAILURE) {
+		if (!isValidItemDetails(&arr[i])) {
 			return EXIT_FAILURE;
 		}
 	}
@@ -304,7 +299,7 @@ static int isValidItemDetailsAll(const ItemDetails *arr, size_t nmemb) {
  */
 static int isValidCharacters(const Character *arr, size_t nmemb) {
 	for (size_t i = 0; i < nmemb; ++i) {
-		if (isValidCharacter(&arr[i]) == EXIT_FAILURE) {
+		if (!isValidCharacter(&arr[i])) {
 			return EXIT_FAILURE;
 		}
 	}
