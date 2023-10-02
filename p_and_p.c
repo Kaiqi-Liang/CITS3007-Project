@@ -1,3 +1,5 @@
+#define _POSIX_C_SOURCE 200809L
+#define _DEFAULT_SOURCE
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -21,7 +23,7 @@ static int isValidItemDetailsAll(const ItemDetails *arr, size_t nmemb);
 static int isValidCharacters(const Character *arr, size_t nmemb);
 static void sanitiseItemDetails(ItemDetails *arr, size_t nmemb);
 static void sanitiseCharacters(Character *arr, size_t nmemb);
-static void sanitiseString(char *buffer);
+static void sanitiseBuffer(char *buffer);
 
 /**
  * @brief Serialise an array of `ItemDetails` structs and store the array using
@@ -311,8 +313,8 @@ static int isValidCharacters(const Character *arr, size_t nmemb) {
  */
 static void sanitiseItemDetails(ItemDetails *arr, size_t nmemb) {
 	for (size_t i = 0; i < nmemb; ++i) {
-		sanitiseString(arr[i].name);
-		sanitiseString(arr[i].desc);
+		sanitiseBuffer(arr[i].name);
+		sanitiseBuffer(arr[i].desc);
 	}
 }
 
@@ -322,15 +324,15 @@ static void sanitiseItemDetails(ItemDetails *arr, size_t nmemb) {
  */
 static void sanitiseCharacters(Character *arr, size_t nmemb) {
 	for (size_t i = 0; i < nmemb; ++i) {
-		sanitiseString(arr[i].name);
-		sanitiseString(arr[i].profession);
+		sanitiseBuffer(arr[i].name);
+		sanitiseBuffer(arr[i].profession);
 	}
 }
 
 /**
  * @brief Sanitise everything after the nul terminator
  */
-static void sanitiseString(char *buffer) {
-	size_t length = strlen(buffer);
+static void sanitiseBuffer(char *buffer) {
+	size_t length = strnlen(buffer, DEFAULT_BUFFER_SIZE);
 	memset(buffer + length, 0, DEFAULT_BUFFER_SIZE - length);
 }
