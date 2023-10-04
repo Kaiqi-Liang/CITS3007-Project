@@ -215,17 +215,24 @@ err: // make sure to free the allocated memory if any error occurs
  * then permanently drop permissions
  */
 int secureLoad(const char *filepath) {
-	const int fd = open(filepath, O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+	const int fd = open(filepath, O_RDONLY);
+	if (fd == -1) {
+		return 1;
+	}
+	int ret = 0;
 	size_t nmemb;
 	ItemDetails *item_details;
 	if (loadItemDetails(&item_details, &nmemb, fd) == EXIT_FAILURE) {
-		return 1;
+		ret = 1;
 	}
+	close(fd);
 	if (setuid(getuid()) == -1) {
-		return 2;
+		ret = 2;
 	}
-	playGame(item_details, nmemb);
-	return 0;
+	if (ret == 0) {
+		playGame(item_details, nmemb);
+	}
+	return ret;
 }
 
 /**
