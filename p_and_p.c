@@ -11,7 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-typedef ssize_t (*ioFuncPtr)(int, void *, size_t); // can only be read(2) or write(2)
+typedef ssize_t (*ioFuncPtr)(int, void *, size_t);  // can only be read(2) or write(2)
 typedef struct ItemDetails ItemDetails;
 typedef struct Character Character;
 typedef struct ItemCarried ItemCarried;
@@ -80,7 +80,7 @@ int loadItemDetails(ItemDetails **ptr, size_t *nmemb, int fd) {
 	sanitiseItemDetails(*ptr, *nmemb);
 	return EXIT_SUCCESS;
 
-err: // make sure to free the allocated memory if any error occurs
+err:  // make sure to free the allocated memory if any error occurs
 	free(*ptr);
 	return EXIT_FAILURE;
 }
@@ -205,7 +205,7 @@ int loadCharacters(Character **ptr, size_t *nmemb, int fd) {
 	sanitiseCharacters(*ptr, *nmemb);
 	return EXIT_SUCCESS;
 
-err: // make sure to free the allocated memory if any error occurs
+err:  // make sure to free the allocated memory if any error occurs
 	free(*ptr);
 	return EXIT_FAILURE;
 }
