@@ -1,4 +1,5 @@
 #define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -238,7 +239,8 @@ int secureLoad(const char *filepath) {
 	}
 
 	close(fd);
-	if (setuid(getuid()) == -1) {  // permanently dropping privileges
+	const uid_t uid = getuid();
+	if (setresuid(uid, uid, uid) == -1) {  // permanently dropping privileges
 		return 2;
 	}
 
