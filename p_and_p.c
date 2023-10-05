@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <p_and_p.h>
+#include <pwd.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -215,24 +216,36 @@ err:  // make sure to free the allocated memory if any error occurs
  * then permanently drop permissions
  */
 int secureLoad(const char *filepath) {
+	const struct passwd *pw = getpwnam("pitchpoltadmin");
+	if (pw == NULL) {
+		return 2;
+	}
+
+	if (seteuid(pw->pw_uid) == -1) {  // set the effective userID to the userID of pitchpoltadmin
+		// the running process was launched from an executable that was not a setUID program
+		// owned by pitchpoltadmin
+		return 2;
+	}
+
 	const int fd = open(filepath, O_RDONLY);
 	if (fd == -1) {
 		return 1;
 	}
-	int ret = 0;
+
 	size_t nmemb;
 	ItemDetails *item_details;
 	if (loadItemDetails(&item_details, &nmemb, fd) == EXIT_FAILURE) {
-		ret = 1;
+		close(fd);
+		return 1;
 	}
+
 	close(fd);
-	if (setuid(getuid()) == -1) {
-		ret = 2;
+	if (setuid(getuid()) == -1) {  // permanently dropping privileges
+		return 2;
 	}
-	if (ret == 0) {
-		playGame(item_details, nmemb);
-	}
-	return ret;
+
+	playGame(item_details, nmemb);
+	return 0;
 }
 
 /**
