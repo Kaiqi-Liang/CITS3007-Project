@@ -1,5 +1,4 @@
 #define _POSIX_C_SOURCE 200809L
-#define _DEFAULT_SOURCE
 #include <assert.h>
 #include <ctype.h>
 #include <fcntl.h>
@@ -44,8 +43,7 @@ int saveItemDetails(const ItemDetails *arr, size_t nmemb, int fd) {
 	if (copy == NULL) {
 		return EXIT_FAILURE;
 	}
-	memcpy(copy, arr, size);
-	sanitiseItemDetails(copy, nmemb);
+	sanitiseItemDetails(memcpy(copy, arr, size), nmemb);
 
 	if (processField(fd, copy, size, (ioFuncPtr)write) == EXIT_FAILURE) {
 		free(copy);
