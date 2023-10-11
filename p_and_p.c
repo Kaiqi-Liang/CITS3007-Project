@@ -65,7 +65,7 @@ int loadItemDetails(ItemDetails **ptr, size_t *nmemb, int fd) {
 
 	const size_t size = sizeof(ItemDetails) * *nmemb;
 	*ptr = malloc(size);
-	if (ptr == NULL) {
+	if (*ptr == NULL) {
 		return EXIT_FAILURE;
 	}
 
@@ -188,7 +188,7 @@ int loadCharacters(Character **ptr, size_t *nmemb, int fd) {
 
 	const size_t size = sizeof(Character) * *nmemb;
 	*ptr = malloc(size);
-	if (ptr == NULL) {
+	if (*ptr == NULL) {
 		return EXIT_FAILURE;
 	}
 
