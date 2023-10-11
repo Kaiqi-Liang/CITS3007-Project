@@ -16,7 +16,6 @@ typedef ssize_t (*ioFuncPtr)(int, void *, size_t);  // can only be read(2) or wr
 typedef struct ItemDetails ItemDetails;
 typedef struct Character Character;
 typedef struct ItemCarried ItemCarried;
-static_assert(sizeof(size_t) == sizeof(uint64_t), "Assume size_t is 64 bit unsigned int");
 
 static int processField(int fd, void *buf, size_t size, ioFuncPtr ioFunc);
 static int processCharacter(Character *character, int fd, ioFuncPtr ioFunc);
@@ -353,6 +352,6 @@ static void sanitiseCharacters(Character *arr, size_t nmemb) {
  * @brief Sanitise everything after the nul terminator
  */
 static void sanitiseBuffer(char *buffer) {
-	size_t length = strnlen(buffer, DEFAULT_BUFFER_SIZE);
+	const size_t length = strnlen(buffer, DEFAULT_BUFFER_SIZE);
 	memset(buffer + length, 0, DEFAULT_BUFFER_SIZE - length);
 }
