@@ -38,7 +38,7 @@ int saveItemDetails(const ItemDetails *arr, size_t nmemb, int fd) {
 		return EXIT_FAILURE;
 	}
 
-	size_t size = sizeof(*arr) * nmemb;
+	const size_t size = sizeof(*arr) * nmemb;
 	ItemDetails *copy = malloc(size);
 	if (copy == NULL) {
 		return EXIT_FAILURE;
@@ -230,6 +230,12 @@ int secureLoad(const char *filepath) {
 		return 1;
 	}
 
+	const uid_t uid = getuid();
+	if (setresuid(uid, uid, uid) == -1) {  // permanently dropping privileges
+		close(fd);
+		return 2;
+	}
+
 	size_t nmemb;
 	ItemDetails *item_details;
 	if (loadItemDetails(&item_details, &nmemb, fd) == EXIT_FAILURE) {
@@ -238,12 +244,8 @@ int secureLoad(const char *filepath) {
 	}
 
 	close(fd);
-	const uid_t uid = getuid();
-	if (setresuid(uid, uid, uid) == -1) {  // permanently dropping privileges
-		return 2;
-	}
-
 	playGame(item_details, nmemb);
+	free(item_details);
 	return 0;
 }
 
