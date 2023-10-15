@@ -240,6 +240,7 @@ int secureLoad(const char *filepath) {
 
 	const uid_t uid = getuid();
 	if (setresuid(uid, uid, uid) == -1) {  // permanently dropping privileges
+		free(item_details);
 		return 2;
 	}
 
