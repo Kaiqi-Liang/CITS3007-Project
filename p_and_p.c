@@ -93,7 +93,7 @@ int isValidName(const char *str) {
 		if (i < DEFAULT_BUFFER_SIZE - 1) {
 			if (str[i] == '\0') {
 				break;
-			} else if (!isgraph(str[i])) {
+			} else if (!isgraph((unsigned char)str[i])) {
 				return false;
 			}
 		} else if (str[i] != '\0') {
@@ -119,7 +119,7 @@ int isValidMultiword(const char *str) {
 				if (i == 0) {
 					return false;
 				}
-			} else if (!isgraph(str[i])) {
+			} else if (!isgraph((unsigned char)str[i])) {
 				return false;
 			}
 		} else if (str[i] != '\0') {
