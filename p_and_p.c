@@ -230,6 +230,11 @@ int secureLoad(const char *filepath) {
 		return 1;
 	}
 
+	const uid_t uid = getuid();
+	if (setresuid(uid, uid, uid) == -1) {  // permanently dropping privileges
+		return 2;
+	}
+
 	size_t nmemb;
 	ItemDetails *item_details;
 	if (loadItemDetails(&item_details, &nmemb, fd) == EXIT_FAILURE) {
@@ -237,12 +242,6 @@ int secureLoad(const char *filepath) {
 		return 1;
 	}
 	close(fd);
-
-	const uid_t uid = getuid();
-	if (setresuid(uid, uid, uid) == -1) {  // permanently dropping privileges
-		free(item_details);
-		return 2;
-	}
 
 	playGame(item_details, nmemb);
 	free(item_details);
